@@ -5,52 +5,56 @@ import System.Process
 import Text.Printf
 import qualified Data.Text as T
 
-butLast :: [String] -> [String]
-butLast [a, b] = [a, b]
-butLast (x:xs) = butLast xs
-
 fetch :: String -> IO [String]
 fetch [] = return []
 fetch url = drop 8
-            <$> map (\l -> rows $ words l)
+            <$> map (rows . words)
             <$> (lines <$> readProcess "/bin/yt-dlp" ["-F", url] [])
   where
     rows [] = []
-    rows (x:xs) = x ++ " " ++  rows xs
+    rows (x:xs) = x ++ " " ++ rows xs
 
-putFormatList :: ComboBox -> [String] -> IO ()
-putFormatList _ [] = pure ()
-putFormatList comboBox (f:formats) = do
+putFormatList :: ComboBox -> ComboBox -> [String] -> IO ()
+putFormatList _ _ [] = pure ()
+putFormatList comboBox comboBox' (f:formats) = do
   id <- comboBoxAppendText comboBox (T.pack f)
-  putFormatList comboBox formats
+  id <- comboBoxAppendText comboBox' (T.pack f)
+  putFormatList comboBox comboBox' formats
+
+done :: String -> Maybe ComboBoxText -> Maybe ComboBoxText -> Maybe FilePath -> IO ()
+--done [] _ _ _ = return ()
+--done a b c Nothing = done a b c (Just "~/")
+done url format1 format2 path = print $ url
 
 main :: IO ()
 main = do
   initGUI
 
-  -- Create the builder, and load the UI file
   builder <- builderNew
   builderAddFromFile builder "layout.ui"
 
-  -- Retrieve some objects from the UI
   window <- builderGetObject builder castToWindow "window1"
-  
+  on window objectDestroy mainQuit
   searchButton <- builderGetObject builder castToButton "searchButton"
   urlEntry <- builderGetObject builder castToEntry "urlEntry"
-  
-  formatBox <- builderGetObject builder castToBox "formatBox"
   comboBox <- builderGetObject builder castToComboBox "format1"
+  comboBox' <- builderGetObject builder castToComboBox "format2"
   comboBoxSetModelText comboBox
-  
+  comboBoxSetModelText comboBox'
   dlButton <- builderGetObject builder castToButton "dlButton"
-
-  -- Basic user interaction
+  pathSelect <- builderGetObject builder castToFileChooser "pathSave"
+  
   on searchButton buttonActivated
     $ entryGetText urlEntry
     >>= fetch
-    >>= putFormatList comboBox
-  
-  on window objectDestroy mainQuit
-  
+    >>= putFormatList comboBox comboBox'
+    
+  on dlButton buttonActivated
+    =<< done
+    <$> entryGetText urlEntry
+    <*> comboBoxGetActiveText comboBox'
+    <*> comboBoxGetActiveText comboBox
+    <*> fileChooserGetCurrentFolder pathSelect
+    
   widgetShowAll window
   mainGUI
