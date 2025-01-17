@@ -6,13 +6,23 @@ import Text.Printf
 import qualified Data.Text as T
 
 butLast :: [String] -> [String]
-butLast [a,b] = [a,b]
+butLast [a, b] = [a, b]
 butLast (x:xs) = butLast xs
 
-fetch :: String -> IO [[String]]
+fetch :: String -> IO [String]
+fetch [] = return []
 fetch url = drop 8
-            <$> map (\l -> [words l !! 0, words l !! 1] ++ (butLast $ words l))
+            <$> map (\l -> rows $ words l)
             <$> (lines <$> readProcess "/bin/yt-dlp" ["-F", url] [])
+  where
+    rows [] = []
+    rows (x:xs) = x ++ " " ++  rows xs
+
+putFormatList :: ComboBox -> [String] -> IO ()
+putFormatList _ [] = pure ()
+putFormatList comboBox (f:formats) = do
+  id <- comboBoxAppendText comboBox (T.pack f)
+  putFormatList comboBox formats
 
 main :: IO ()
 main = do
@@ -24,17 +34,23 @@ main = do
 
   -- Retrieve some objects from the UI
   window <- builderGetObject builder castToWindow "window1"
-  dlButton <- builderGetObject builder castToButton "dlButton"
+  
   searchButton <- builderGetObject builder castToButton "searchButton"
   urlEntry <- builderGetObject builder castToEntry "urlEntry"
+  
+  formatBox <- builderGetObject builder castToBox "formatBox"
   comboBox <- builderGetObject builder castToComboBox "format1"
+  comboBoxSetModelText comboBox
+  
+  dlButton <- builderGetObject builder castToButton "dlButton"
 
   -- Basic user interaction
-  on searchButton buttonActivated $ entryGetText urlEntry >>= fetch >>= print
+  on searchButton buttonActivated
+    $ entryGetText urlEntry
+    >>= fetch
+    >>= putFormatList comboBox
+  
   on window objectDestroy mainQuit
-
-  -- comboBoxAppendText comboBox (T.pack "JAJA") >>= print
-
-  -- Display the window
+  
   widgetShowAll window
   mainGUI
