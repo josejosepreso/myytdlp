@@ -4,27 +4,35 @@ import Graphics.UI.Gtk
 import System.Process
 import Text.Printf
 import qualified Data.Text as T
+import Data.List (intercalate)
+import Data.Maybe
+
+import Data.Text.Lazy.Builder (Builder, fromString)
 
 fetch :: String -> IO [String]
-fetch [] = return []
+fetch [] = pure []
 fetch url = drop 8
-            <$> map (rows . words)
+            <$> map (cells . words)
             <$> (lines <$> readProcess "/bin/yt-dlp" ["-F", url] [])
   where
-    rows [] = []
-    rows (x:xs) = x ++ " " ++ rows xs
+    cells w = intercalate " " $ take 3 w ++ drop (length w - 4) w
 
 putFormatList :: ComboBox -> ComboBox -> [String] -> IO ()
 putFormatList _ _ [] = pure ()
 putFormatList comboBox comboBox' (f:formats) = do
-  id <- comboBoxAppendText comboBox (T.pack f)
-  id <- comboBoxAppendText comboBox' (T.pack f)
+  comboBoxAppendText comboBox (T.pack f)
+  comboBoxAppendText comboBox' (T.pack f)
   putFormatList comboBox comboBox' formats
 
-done :: String -> Maybe ComboBoxText -> Maybe ComboBoxText -> Maybe FilePath -> IO ()
+done :: Entry -> ComboBox -> ComboBox -> FileChooser -> IO ()
 --done [] _ _ _ = return ()
 --done a b c Nothing = done a b c (Just "~/")
-done url format1 format2 path = print $ url
+done url format1 format2 path = do
+  u <- entryGetText url :: IO String
+  f1 <- tail . head . words . show . fromJust <$> comboBoxGetActiveText format1
+  f2 <- tail . head . words . show . fromJust <$> comboBoxGetActiveText format2
+  p <- fileChooserGetURI path
+  callCommand $ printf "/bin/yt-dlp -f %s+%s \"%s\" -P %s/" f1 f2 u (drop 7 $ fromJust p)
 
 main :: IO ()
 main = do
@@ -49,12 +57,7 @@ main = do
     >>= fetch
     >>= putFormatList comboBox comboBox'
     
-  on dlButton buttonActivated
-    =<< done
-    <$> entryGetText urlEntry
-    <*> comboBoxGetActiveText comboBox'
-    <*> comboBoxGetActiveText comboBox
-    <*> fileChooserGetCurrentFolder pathSelect
+  on dlButton buttonActivated $ done urlEntry comboBox comboBox' pathSelect
     
   widgetShowAll window
   mainGUI

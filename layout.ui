@@ -226,7 +226,6 @@
         <child>
           <object class="GtkButton" id="dlButton">
             <property name="visible">True</property>
-            <property name="sensitive">True</property>
             <property name="can-focus">True</property>
             <property name="receives-default">False</property>
             <child>
