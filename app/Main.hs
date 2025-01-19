@@ -6,12 +6,12 @@ import Text.Printf
 import Text.Regex.Posix
 import qualified Data.Text as T
 import Data.List (intercalate)
-import Data.Maybe
+import Data.Maybe (fromJust)
 
 fetch :: String -> IO [String]
 fetch [] = pure []
-fetch url = map (intercalate " " . take 7 . words)
-            <$> filter (\l -> l =~ "[a-z0-9]+.*\\|.*")
+fetch url = map (intercalate " " . words)
+            <$> filter (=~ "[a-z0-9]+.*\\|.*")
             <$> lines
             <$> readProcess "/bin/yt-dlp" ["-F", url] []
 
@@ -26,13 +26,13 @@ head' :: [a] -> Maybe a
 head' [] = Nothing
 head' xs = Just $ head xs
 
-done :: String -> Maybe ComboBoxText -> Maybe ComboBoxText -> Maybe String -> IO ()
-done [] _ _ _ = pure ()
-done a b c Nothing = done a b c (Just "~/")
-done _ Nothing Nothing _ = pure ()
-done a Nothing c d = done a (Just $ T.pack "") c d
-done a b Nothing d = done a b (Just $ T.pack "") d
-done url format1 format2 path = callCommand
+download :: String -> Maybe ComboBoxText -> Maybe ComboBoxText -> Maybe String -> IO ()
+download [] _ _ _ = pure ()
+download a b c Nothing = download a b c (Just "file://~")
+download _ Nothing Nothing _ = pure ()
+download a Nothing c d = download a (Just $ T.pack "") c d
+download a b Nothing d = download a b (Just $ T.pack "") d
+download url format1 format2 path = callCommand
                                 $ printf
                                   "/bin/yt-dlp -f %s \"%s\" -P %s/"
                                   ((\a b ->
@@ -65,9 +65,9 @@ main = do
   
   comboBox <- builderGetObject builder castToComboBox "format1"
   comboBox' <- builderGetObject builder castToComboBox "format2"
-  comboBoxSetModelText comboBox
-  comboBoxSetModelText comboBox'
-  
+  listStore <- comboBoxSetModelText comboBox
+  listStore' <- comboBoxSetModelText comboBox'
+
   dlButton <- builderGetObject builder castToButton "dlButton"
   pathSelect <- builderGetObject builder castToFileChooser "pathSave"
   
@@ -81,7 +81,7 @@ main = do
     f1 <- comboBoxGetActiveText c
     f2 <- comboBoxGetActiveText c'
     p <- fileChooserGetURI p
-    done url f1 f2 p) urlEntry comboBox comboBox' pathSelect
+    download url f1 f2 p) urlEntry comboBox comboBox' pathSelect
     
   widgetShowAll window
   mainGUI
